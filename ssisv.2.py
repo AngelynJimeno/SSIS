@@ -1,5 +1,30 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox, simpledialog
+import re
+import mysql.connector
+from mysql.connector import Error
+
+
+try:
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        database="ssis"  
+    )
+
+    if db.is_connected():
+        print("Connected to MySQL")
+
+    cursor = db.cursor()
+    cursor.execute("SELECT * FROM `add`")
+    records = cursor.fetchall()
+
+    for record in records:
+        print(record)
+
+except Error as e:
+    print("Error:", e)
+
 
 #==============gui===========
 win = tk.Tk()
@@ -202,11 +227,86 @@ def open_view_courses_dialog():
     listbox = tk.Listbox(dialog_window, font=("Arial", 12), selectmode=tk.SINGLE)
     listbox.pack(padx=20, pady=10)
 
-    for course in courses:
-        listbox.insert(tk.END, course)
-
-
-    edit_button = tk.Button(dialog_window, text="Edit", command=edit_course)
+    edit_button = tk.Button(dialog_window, text="Edit")
     edit_button.pack(pady=10)
+
+
+#====================
+def add_student():
+    id_number = IDno_ent.get()
+    last_name = name_ent.get()
+    first_name = name1_ent.get()
+    middle_name = name2_ent.get()
+    yearlvl = Yearlvl_ent.get()
+    gender = gender_ent.get()
+    course_code = Coursecd_ent.get()
+
+    if id_number and last_name and first_name and middle_name and yearlvl and gender and course_code:
+        try:
+            cursor.execute("INSERT INTO students (id_number, last_name, first_name, middle_name, year_level, gender, course_code) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                           (id_number, last_name, first_name, middle_name, yearlvl, gender, course_code))
+            db.commit()
+            messagebox.showinfo("Success", "Student added successfully!")
+            clear_entries()
+            update_student_table()
+        except mysql.connector.Error as e:
+            messagebox.showerror("Error", f"Error adding student: {e}")
+    else:
+        messagebox.showerror("Missing Information", "Please fill in all fields.")
+
+def delete_student():
+    response = messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this student?")
+    if response:
+        selected_item = student_table.selection()
+        if selected_item:
+            student_id = student_table.item(selected_item, 'values')[0]
+            try:
+                cursor.execute("DELETE FROM students WHERE id_number = %s", (student_id,))
+                db.commit()
+                messagebox.showinfo("Delete Student", "Student record deleted successfully!")
+                update_student_table()
+            except mysql.connector.Error as e:
+                messagebox.showerror("Delete Student", f"Error deleting student: {e}")
+    else:
+        messagebox.showinfo("Delete Cancelled", "Student deletion cancelled")
+
+def save_updated_student(student_id):
+    new_id_number = IDno_ent.get()
+    new_last_name = name_ent.get()
+    new_first_name = name1_ent.get()
+    new_middle_name = name2_ent.get()
+    new_yearlvl = Yearlvl_ent.get()
+    new_gender = gender_ent.get()
+    new_course_code = Coursecd_ent.get()
+
+    try:
+        cursor.execute("UPDATE students SET id_number = %s, last_name = %s, first_name = %s, middle_name = %s, year_level = %s, gender = %s, course_code = %s WHERE id_number = %s",
+                       (new_id_number, new_last_name, new_first_name, new_middle_name, new_yearlvl, new_gender, new_course_code, student_id))
+        db.commit()
+        messagebox.showinfo("Update Student", "Student information updated successfully!")
+        clear_entries()
+        update_student_table()
+    except mysql.connector.Error as e:
+        messagebox.showerror("Error", f"Error updating student: {e}")
+
+def clear_entries():
+    IDno_ent.delete(0, tk.END)
+    name_ent.delete(0, tk.END)
+    name1_ent.delete(0, tk.END)
+    name2_ent.delete(0, tk.END)
+    Yearlvl_ent.set('')
+    gender_ent.set('')
+    Coursecd_ent.set('')
+
+def update_student_table():
+    student_table.delete(*student_table.get_children())
+    try:
+        cursor.execute("SELECT * FROM students")
+        students = cursor.fetchall()
+        for student in students:
+            student_table.insert('', 'end', values=student)
+    except mysql.connector.Error as e:
+        messagebox.showerror("Error", f"Error fetching students: {e}")
+#====================
 
 win.mainloop()
